@@ -1,0 +1,39 @@
+yaml
+CopiarEditar
+name: Build, Push & Deploy
+ 
+on:
+  push:
+    branches: [ main ]
+ 
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+ 
+    steps:
+      - name: Clonar repositorio
+        uses: actions/checkout@v4
+ 
+      - name: Login DockerHub (usa tu propio usuario/token)
+        run: echo "${{ secrets.DOCKERHUB_TOKEN }}" | docker login -u ${{ secrets.DOCKERHUB_USERNAME }} --password-stdin
+ 
+      - name: Build y Push imagen
+        run: |
+          docker build -t ${{ secrets.DOCKERHUB_USERNAME }}/nombre_apellido:latest .
+          docker push ${{ secrets.DOCKERHUB_USERNAME }}/nombre_apellido:latest
+ 
+      - name: Desplegar en EC2
+        uses: appleboy/ssh-action@v1.0.0
+        with:
+          host: ${{ secrets.EC2_HOST }}
+          username: ec2-user
+          key: ${{ secrets.VOCKEY }}
+          port: 22
+          timeout: 30s
+          command_timeout: 10m
+          script: |
+            echo "${{ secrets.DOCKERHUB_TOKEN }}" | docker login -u ${{ secrets.DOCKERHUB_USERNAME }} --password-stdin
+            docker pull ${{ secrets.DOCKERHUB_USERNAME }}/nombre_apellido:latest
+            docker stop app || true
+            docker rm app || true
+            docker run -d --name app -p 80:80 ${{ secrets.DOCKERHUB_USERNAME }}/nombre_apellido:latest
